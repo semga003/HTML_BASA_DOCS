@@ -1,0 +1,111 @@
+-- ============================================================
+-- BurgerPlusDB — Модуль №3: Расчёт полной стоимости заказа
+-- Учитывает: количество продукции × норму расхода × цену материала
+-- ============================================================
+
+USE cafe;
+GO
+
+-- ---------------------------------------------------------------
+-- Представление: vw_OrderMaterialCost
+-- Полная детализация стоимости каждой позиции заказа по материалам
+-- ---------------------------------------------------------------
+CREATE OR ALTER VIEW vw_OrderMaterialCost AS
+SELECT
+    o.Id                                            AS OrderId,
+    o.Number                                        AS OrderNumber,
+    o.OrderDate,
+    c.Name                                          AS CustomerName,
+
+    p.Id                                            AS ProductId,
+    p.Name                                          AS ProductName,
+    oi.Quantity                                     AS ProductQty,
+
+    m.Id                                            AS MaterialId,
+    m.Name                                          AS MaterialName,
+    m.Unit                                          AS MaterialUnit,
+    m.Price                                         AS MaterialPrice,
+    sp.Quantity                                     AS NormPerUnit,
+
+    -- Стоимость материала на весь объём позиции заказа:
+    -- норма_расхода × цена_материала × кол-во_продукции
+    sp.Quantity * m.Price * oi.Quantity             AS LineMaterialCost
+
+FROM Orders          o
+JOIN Customers       c   ON c.Id         = o.CustomerId
+JOIN OrderItems      oi  ON oi.OrderId   = o.Id
+JOIN Products        p   ON p.Id         = oi.ProductId
+JOIN Specifications  sp  ON sp.ProductId = oi.ProductId
+JOIN Materials       m   ON m.Id         = sp.MaterialId;
+GO
+
+-- ---------------------------------------------------------------
+-- Запрос 1: Итоговая стоимость каждого заказа
+-- ---------------------------------------------------------------
+SELECT
+    OrderId,
+    OrderNumber,
+    CONVERT(DATE, OrderDate)    AS OrderDate,
+    CustomerName,
+    SUM(LineMaterialCost)       AS TotalMaterialCost
+FROM vw_OrderMaterialCost
+GROUP BY
+    OrderId,
+    OrderNumber,
+    OrderDate,
+    CustomerName
+ORDER BY OrderDate DESC;
+GO
+
+-- ---------------------------------------------------------------
+-- Запрос 2: Детализация по продуктам внутри заказа
+-- ---------------------------------------------------------------
+SELECT
+    OrderId,
+    OrderNumber,
+    CustomerName,
+    ProductName,
+    ProductQty,
+    SUM(LineMaterialCost)       AS ProductMaterialCost
+FROM vw_OrderMaterialCost
+GROUP BY
+    OrderId,
+    OrderNumber,
+    CustomerName,
+    ProductId,
+    ProductName,
+    ProductQty
+ORDER BY OrderId, ProductName;
+GO
+
+-- ---------------------------------------------------------------
+-- Запрос 3: Полная детализация — заказ → продукт → материал
+-- ---------------------------------------------------------------
+SELECT
+    OrderNumber,
+    CustomerName,
+    CONVERT(DATE, OrderDate)    AS OrderDate,
+    ProductName,
+    ProductQty,
+    MaterialName,
+    MaterialUnit,
+    NormPerUnit,
+    MaterialPrice,
+    LineMaterialCost
+FROM vw_OrderMaterialCost
+ORDER BY OrderId, ProductName, MaterialName;
+GO
+
+-- ---------------------------------------------------------------
+-- Пример: стоимость конкретного заказа по номеру
+-- Замените '1' на нужный номер заказа
+-- ---------------------------------------------------------------
+SELECT
+    OrderNumber,
+    CustomerName,
+    CONVERT(DATE, OrderDate)    AS OrderDate,
+    SUM(LineMaterialCost)       AS TotalCost
+FROM vw_OrderMaterialCost
+WHERE OrderNumber = '1'
+GROUP BY OrderNumber, CustomerName, OrderDate;
+GO

@@ -1,0 +1,144 @@
+-- ============================================================
+-- Cafe — Создание базы данных
+-- Модуль №2: Разработка базы данных на основании ER-диаграммы
+-- ============================================================
+
+USE master;
+GO
+
+IF EXISTS (SELECT name FROM sys.databases WHERE name = N'cafe')
+BEGIN
+    ALTER DATABASE cafe SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE cafe;
+END
+GO
+
+CREATE DATABASE Cafe
+    COLLATE Cyrillic_General_CI_AS;
+GO
+
+USE cafe;
+GO
+
+-- ============================================================
+-- Таблица: Users (Пользователи)
+-- ============================================================
+CREATE TABLE Users (
+    Id           INT            NOT NULL IDENTITY(1,1),
+    Login        NVARCHAR(50)   NOT NULL,
+    PasswordHash NVARCHAR(255)  NOT NULL,
+    Role         NVARCHAR(20)   NOT NULL,
+    IsBlocked    BIT            NOT NULL DEFAULT 0,
+    BlockReason  NVARCHAR(255)  NULL,
+    CreatedAt    DATETIME       NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT PK_Users        PRIMARY KEY (Id),
+    CONSTRAINT UQ_Users_Login  UNIQUE (Login),
+    CONSTRAINT CK_Users_Role   CHECK (Role IN ('Administrator', 'User'))
+);
+GO
+
+-- ============================================================
+-- Таблица: Customers (Заказчики)
+-- ============================================================
+CREATE TABLE Customers (
+    Id          NVARCHAR(20)   NOT NULL,
+    Name        NVARCHAR(200)  NOT NULL,
+    INN         NVARCHAR(20)   NULL,
+    Address     NVARCHAR(255)  NULL,
+    Phone       NVARCHAR(20)   NULL,
+    IsSalesman  BIT            NOT NULL DEFAULT 0,
+    IsBuyer     BIT            NOT NULL DEFAULT 0,
+
+    CONSTRAINT PK_Customers PRIMARY KEY (Id)
+);
+GO
+
+-- ============================================================
+-- Таблица: Products (Продукция)
+-- ============================================================
+CREATE TABLE Products (
+    Id    NVARCHAR(20)     NOT NULL,
+    Name  NVARCHAR(200)    NOT NULL,
+    Unit  NVARCHAR(20)     NOT NULL,
+    Price DECIMAL(18, 2)   NOT NULL,
+
+    CONSTRAINT PK_Products       PRIMARY KEY (Id),
+    CONSTRAINT CK_Products_Price CHECK (Price >= 0)
+);
+GO
+
+-- ============================================================
+-- Таблица: Materials (Материалы)
+-- ============================================================
+CREATE TABLE Materials (
+    Id    NVARCHAR(20)     NOT NULL,
+    Name  NVARCHAR(200)    NOT NULL,
+    Unit  NVARCHAR(20)     NOT NULL,
+    Price DECIMAL(18, 2)   NOT NULL,
+
+    CONSTRAINT PK_Materials        PRIMARY KEY (Id),
+    CONSTRAINT CK_Materials_Price  CHECK (Price >= 0)
+);
+GO
+
+-- ============================================================
+-- Таблица: Specifications (Спецификации)
+-- Норма расхода материала на единицу продукции
+-- ============================================================
+CREATE TABLE Specifications (
+    ProductId   NVARCHAR(20)    NOT NULL,
+    MaterialId  NVARCHAR(20)    NOT NULL,
+    Quantity    DECIMAL(18, 4)  NOT NULL,
+
+    CONSTRAINT PK_Specifications          PRIMARY KEY (ProductId, MaterialId),
+    CONSTRAINT FK_Specifications_Product  FOREIGN KEY (ProductId)
+        REFERENCES Products (Id) ON DELETE CASCADE,
+    CONSTRAINT FK_Specifications_Material FOREIGN KEY (MaterialId)
+        REFERENCES Materials (Id) ON DELETE CASCADE,
+    CONSTRAINT CK_Specifications_Qty     CHECK (Quantity > 0)
+);
+GO
+
+-- ============================================================
+-- Таблица: Orders (Заказы покупателей)
+-- ============================================================
+CREATE TABLE Orders (
+    Id          INT             NOT NULL IDENTITY(1,1),
+    Number      NVARCHAR(50)    NOT NULL,
+    OrderDate   DATETIME        NOT NULL DEFAULT GETDATE(),
+    CustomerId  NVARCHAR(20)    NOT NULL,
+    TotalAmount DECIMAL(18, 2)  NOT NULL DEFAULT 0,
+    CreatedBy   INT             NULL,
+
+    CONSTRAINT PK_Orders             PRIMARY KEY (Id),
+    CONSTRAINT UQ_Orders_Number      UNIQUE (Number),
+    CONSTRAINT FK_Orders_Customer    FOREIGN KEY (CustomerId)
+        REFERENCES Customers (Id),
+    CONSTRAINT FK_Orders_User        FOREIGN KEY (CreatedBy)
+        REFERENCES Users (Id),
+    CONSTRAINT CK_Orders_Amount      CHECK (TotalAmount >= 0)
+);
+GO
+
+-- ============================================================
+-- Таблица: OrderItems (Позиции заказа)
+-- ============================================================
+CREATE TABLE OrderItems (
+    OrderId    INT             NOT NULL,
+    ProductId  NVARCHAR(20)    NOT NULL,
+    Quantity   DECIMAL(18, 2)  NOT NULL,
+    Price      DECIMAL(18, 2)  NOT NULL,
+
+    CONSTRAINT PK_OrderItems           PRIMARY KEY (OrderId, ProductId),
+    CONSTRAINT FK_OrderItems_Order     FOREIGN KEY (OrderId)
+        REFERENCES Orders (Id) ON DELETE CASCADE,
+    CONSTRAINT FK_OrderItems_Product   FOREIGN KEY (ProductId)
+        REFERENCES Products (Id),
+    CONSTRAINT CK_OrderItems_Qty       CHECK (Quantity > 0),
+    CONSTRAINT CK_OrderItems_Price     CHECK (Price >= 0)
+);
+GO
+
+PRINT 'Структура базы данных BurgerPlusDB успешно создана.';
+GO
